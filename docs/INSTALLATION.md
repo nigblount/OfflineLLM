@@ -140,10 +140,64 @@ services:
     image: apache/tika:3.2.1.0-full
     restart: unless-stopped
 
+
 volumes:
   qwen3-model:
     external: true
   openwebui-data:
+```
+
+### Alternative: Compose with vLLM
+Instead of Ollama you can run Qwen‑32B using the [vLLM](https://github.com/vllm-project/vllm) backend.
+Create a `docker-compose.vllm.yaml` file:
+
+```yaml
+version: "3.9"
+services:
+  vllm:
+    image: vllm/vllm-openai:v0.10.0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+      - VLLM_API_KEY=${VLLM_API_KEY:-changeme}
+    command: >
+      --model Qwen/Qwen1.5-32B
+      --host 0.0.0.0 --port 8000
+    volumes:
+      - models:/root/.cache/huggingface
+    ports:
+      - "8000:8000"
+    shm_size: 1g
+    restart: unless-stopped
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    environment:
+      - OPENAI_API_BASE_URL=http://vllm:8000/v1
+      - OPENAI_API_KEY=${VLLM_API_KEY:-changeme}
+    ports:
+      - "3000:8080"
+    volumes:
+      - openwebui-data:/app/backend/data
+    depends_on:
+      - vllm
+    restart: unless-stopped
+
+volumes:
+  models: {}
+  openwebui-data: {}
+```
+
+Start it with:
+
+```bash
+docker compose -f docker-compose.vllm.yaml up -d
 ```
 
 ## 6. Preview Service Container

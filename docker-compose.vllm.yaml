@@ -1,0 +1,41 @@
+version: "3.9"
+services:
+  vllm:
+    image: vllm/vllm-openai:v0.10.0
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
+      - VLLM_API_KEY=${VLLM_API_KEY:-changeme}
+    command: >
+      --model Qwen/Qwen1.5-32B
+      --host 0.0.0.0
+      --port 8000
+    volumes:
+      - models:/root/.cache/huggingface
+    ports:
+      - "8000:8000"
+    shm_size: 1g
+    restart: unless-stopped
+
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    environment:
+      - OPENAI_API_BASE_URL=http://vllm:8000/v1
+      - OPENAI_API_KEY=${VLLM_API_KEY:-changeme}
+    ports:
+      - "3000:8080"
+    volumes:
+      - openwebui-data:/app/backend/data
+    depends_on:
+      - vllm
+    restart: unless-stopped
+
+volumes:
+  models: {}
+  openwebui-data: {}
