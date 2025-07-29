@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Offline AI Assistant
+Comment=Start the offline AI assistant stack
+Exec=/bin/bash -c "$HOME/OfflineLLM/start_offline_assistant.sh"
+Icon=utilities-terminal
+Terminal=false

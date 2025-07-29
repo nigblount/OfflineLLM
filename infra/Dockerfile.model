@@ -1,0 +1,2 @@
+FROM scratch
+COPY Qwen2-32B-*.gguf /models/qwen3-32b/
