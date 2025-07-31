@@ -5,4 +5,3 @@ documents:
   preview:
     name: PDF Preview Service
     openapi_url: http://preview-service:5001/openapi.json
-    

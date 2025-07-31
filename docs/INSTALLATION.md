@@ -1,6 +1,6 @@
 # Offline Qwen3-32B Inference Stack
 
-This guide walks through setting up a fully containerized offline LLM stack for Czech business report analysis. It includes a FastAPI PDF preview service, an Ollama backend running Qwen3-32B, Open WebUI, and an optional Apache Tika server.
+This guide walks through setting up a fully containerized offline LLM stack for Czech business report analysis. It includes a Flask-based PDF preview service, an Ollama backend running Qwen3-32B, Open WebUI, and an optional Apache Tika server.
 
 ## Prerequisites
 - **OS**: Ubuntu 22.04 LTS
@@ -76,25 +76,37 @@ offline-llm/
 ├── services/
 │   └── preview_service/
 ├── models/
-├── infra/
+├── docker/
 └── docs/
 ```
 
 ## 4. Base Docker Image
-Create `infra/base.Dockerfile`:
+Create `docker/base.Dockerfile`:
 ```Dockerfile
 FROM nvidia/cuda:12.2.0-runtime-ubuntu22.04
-LABEL org.opencontainers.image.source="https://github.com/yourrepo/offline-llm"
-RUN apt-get update && apt-get install -y python3 python3-pip git curl \
-    && rm -rf /var/lib/apt/lists/*
+LABEL org.opencontainers.image.source="https://github.com/yourrepo/offline-llm" \
+      org.opencontainers.image.description="Base image with Python3 and CUDA runtime"
+RUN apt-get update && apt-get install -y python3 python3-pip git curl && rm -rf /var/lib/apt/lists/*
 ```
 Build it:
 ```bash
-docker build -f infra/base.Dockerfile -t offline-llm/base:1.0 .
+docker build -f docker/base.Dockerfile -t offline-llm/base:1.0 .
+```
+Use it in another Dockerfile:
+```Dockerfile
+FROM offline-llm/base:1.0
+```
+Build a minimal image with the Qwen2-32B model and fill a volume:
+
+```bash
+docker build -f docker/model.Dockerfile -t qwen2-model:1.0 .
+docker volume create qwen3-model
+docker run --rm -v qwen3-model:/models/qwen3-32b qwen2-model:1.0
 ```
 
+
 ## 5. Docker Compose Stack
-Create `infra/docker-compose.yml`:
+Create `docker-compose.yaml`:
 ```yaml
 version: "3.9"
 services:
@@ -103,8 +115,8 @@ services:
       context: services/preview_service
       dockerfile: Dockerfile
     image: offline-llm/preview:1.0
-    ports:
-      - "5001:5001"
+    volumes:
+      - preview_data:/data
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
       interval: 30s
@@ -113,8 +125,10 @@ services:
 
   ollama:
     image: ollama/ollama:0.9.5
+    ports:
+      - "11434:11434"
     volumes:
-      - qwen3-model:/models/qwen3-32b:ro
+      - ollama_models:/root/.ollama
     command: >
       ollama serve --model /models/qwen3-32b/Qwen3-32B-*.gguf \
       --port 11434 --host 0.0.0.0 --log-level info
@@ -128,77 +142,26 @@ services:
   open-webui:
     image: ghcr.io/open-webui/open-webui:ollama
     ports:
-      - "3000:8080"
+      - "8080:8080"
     volumes:
-      - openwebui-data:/app/backend/data
+      - webui_data:/app/backend/data
     depends_on:
       ollama:
-        condition: service_healthy
+        condition: service_started
+      preview-service:
+        condition: service_started
     restart: unless-stopped
 
   tika:
     image: apache/tika:3.2.1.0-full
     restart: unless-stopped
 
-
 volumes:
-  qwen3-model:
-    external: true
-  openwebui-data:
+  ollama_models:
+  webui_data:
+  preview_data:
 ```
 
-### Alternative: Compose with vLLM
-Instead of Ollama you can run Qwen‑32B using the [vLLM](https://github.com/vllm-project/vllm) backend.
-Create a `docker-compose.vllm.yaml` file:
-
-```yaml
-version: "3.9"
-services:
-  vllm:
-    image: vllm/vllm-openai:v0.10.0
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-    environment:
-      - HUGGING_FACE_HUB_TOKEN=${HF_TOKEN}
-      - VLLM_API_KEY=${VLLM_API_KEY:-changeme}
-    command: >
-      --model Qwen/Qwen1.5-32B
-      --host 0.0.0.0 --port 8000
-    volumes:
-      - models:/root/.cache/huggingface
-    ports:
-      - "8000:8000"
-    shm_size: 1g
-    restart: unless-stopped
-
-  open-webui:
-    image: ghcr.io/open-webui/open-webui:main
-    environment:
-      - OPENAI_API_BASE_URL=http://vllm:8000/v1
-      - OPENAI_API_KEY=${VLLM_API_KEY:-changeme}
-    ports:
-      - "3000:8080"
-    volumes:
-      - openwebui-data:/app/backend/data
-    depends_on:
-      - vllm
-    restart: unless-stopped
-
-volumes:
-  models: {}
-  openwebui-data: {}
-```
-
-Start it with:
-
-```bash
-docker compose -f docker-compose.vllm.yaml up -d
-```
 
 ## 6. Preview Service Container
 `services/preview_service/requirements.txt`:
@@ -211,7 +174,7 @@ pytesseract==0.3.10
 Pillow==9.5.0
 ```
 
-`services/preview_service/Dockerfile`:
+`docker/preview_service.Dockerfile`:
 ```Dockerfile
 FROM offline-llm/base:1.0
 WORKDIR /app
@@ -222,58 +185,53 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 EXPOSE 5001
-CMD ["uvicorn", "server:app", "--host", "0.0.0.0", "--port", "5001"]
+CMD ["python", "app.py"]
 ```
 
-`services/preview_service/server.py` example:
+`services/preview_service/app.py` example:
 ```python
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
-import fitz
-from pdf2image import convert_from_path
-import pytesseract
-from PIL import Image
-import os
+from flask import Flask, request, jsonify
 
-app = FastAPI(title="PDF Preview Service")
+app = Flask(__name__)
 
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
-@app.get("/preview/pdf-text")
-def extract_pdf_text(filename: str):
-    path = os.path.join("uploads", filename)
-    if not os.path.exists(path):
-        raise HTTPException(status_code=404, detail="File not found")
-    doc = fitz.open(path)
-    text = "".join(page.get_text("text") for page in doc)
-    return {"text": text}
-
-@app.get("/preview/thumbnail")
-def get_pdf_thumbnail(filename: str, page: int = 0):
-    path = os.path.join("uploads", filename)
-    if not os.path.exists(path):
-        raise HTTPException(status_code=404, detail="File not found")
-    img = convert_from_path(path, first_page=page+1, last_page=page+1)[0]
-    out = f"/tmp/{filename}_p{page}.png"
-    img.save(out, "PNG")
-    return FileResponse(out)
+@app.post("/extract")
+def extract():
+    # handle uploaded file and return extracted text
+    return jsonify({"text": "...", "language": "en"})
 ```
 
 ## 7. Launch the Stack
 Build and start the containers:
 ```bash
-docker compose -f infra/docker-compose.yml up --build -d
+docker compose up --build -d
 ```
 Check status:
 ```bash
-docker compose -f infra/docker-compose.yml ps
+docker compose ps
 ```
-Open WebUI at <http://localhost:3000>.
+Open WebUI at <http://localhost:8080>.
 
 ## 8. Maintenance Tips
 - Keep images and host packages updated.
 - Limit container privileges by running as non-root where possible.
 - Use healthchecks and `restart: unless-stopped` to improve reliability.
 - Consider a CI pipeline to rebuild images and scan for vulnerabilities.
+
+## 9. Desktop launcher and systemd service
+Copy the provided launcher and service files to integrate with your desktop environment:
+
+```bash
+cp configs/OfflineLLM.desktop ~/.local/share/applications/
+chmod +x ~/.local/share/applications/OfflineLLM.desktop
+
+mkdir -p ~/.config/systemd/user
+cp configs/offline-llm.service ~/.config/systemd/user/
+systemctl --user daemon-reexec
+systemctl --user enable --now offline-llm.service
+```
+
+The desktop launcher appears as **Offline LLM Assistant**. The systemd service starts the stack on login and restarts it if it exits. Ensure `unset DOCKER_HOST` is present in your `~/.bashrc` so Docker uses the default socket.

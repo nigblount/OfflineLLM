@@ -1,0 +1,84 @@
+version: "3.9"
+services:
+  ollama:
+    image: ollama/ollama:0.9.5
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/models"]
+      interval: 30s
+      retries: 5
+    deploy:
+      device_requests:
+        - driver: nvidia
+          count: all
+          capabilities: [gpu]
+    restart: unless-stopped
+
+  preview-service:
+    build:
+      context: .
+      dockerfile: docker/preview_service.Dockerfile
+    ports:
+      - "5001:5001"
+    volumes:
+      - ./data/preview:/data
+    depends_on:
+      tika:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
+      interval: 30s
+      retries: 3
+    restart: unless-stopped
+
+  tika:
+    image: apache/tika:3.2.1.0-full
+    restart: unless-stopped
+
+  open-webui:
+    build:
+      context: .
+      dockerfile: docker/webui.Dockerfile
+    image: offline-llm/webui:1.0
+    ports:
+      - "8080:8080"
+    environment:
+      - OW_CONFIG=/app/backend/data/settings.yaml
+      - WEBUI_SECRET=${WEBUI_SECRET:-changeme}
+      - PREVIEW_SERVICE_URL=${PREVIEW_SERVICE_URL:-http://preview-service:5001}
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///backend/data/sqlite.db}
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - SENTENCE_TRANSFORMERS_HOME=/app/embeddings
+      - EMBEDDING_MODEL=intfloat/multilingual-e5-base
+      - HF_HUB_OFFLINE=1
+      - TRANSFORMERS_OFFLINE=1
+      - SCARF_NO_ANALYTICS=true
+      - DO_NOT_TRACK=true
+      - ANONYMIZED_TELEMETRY=false
+    volumes:
+      - ./data/webui:/app/backend/data
+      - ./data/webui/embeddings:/app/embeddings
+      - ./configs/openwebui/settings.yaml:/app/backend/data/settings.yaml:ro
+      - ./configs/openwebui/models/config.yaml:/app/backend/data/models/config.yaml:ro
+    deploy:
+      device_requests:
+        - driver: nvidia
+          count: all
+          capabilities: [gpu]
+    depends_on:
+      ollama:
+        condition: service_healthy
+      preview-service:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  ollama_models:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${HOME}/.ollama

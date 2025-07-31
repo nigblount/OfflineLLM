@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Offline LLM Assistant
+Comment=Chat with Qwen2-32B offline via Open WebUI
+Exec=gnome-terminal -- bash -c "/home/ai-analytics/OfflineLLM/start_offline_assistant.sh; exec bash"
+Icon=utilities-terminal
+Terminal=true
+Type=Application
+Categories=Utility;
