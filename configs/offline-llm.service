@@ -1,0 +1,13 @@
+[Unit]
+Description=Offline LLM Assistant
+After=network.target docker.service
+
+[Service]
+ExecStart=%h/OfflineLLM/scripts/start_offline_assistant.sh
+WorkingDirectory=%h/OfflineLLM
+Restart=always
+RestartSec=10
+Environment=DOCKER_HOST=unix:///var/run/docker.sock
+
+[Install]
+WantedBy=default.target

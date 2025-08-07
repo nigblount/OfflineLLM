@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=Offline LLM Assistant
+Comment=Chat with Qwen3-32B offline via Open WebUI
+Exec=/usr/bin/bash -c "$HOME/OfflineLLM/scripts/start_offline_assistant.sh"
+Icon=utilities-terminal
+Terminal=false
+Type=Application
+Categories=Utility;
