@@ -1,0 +1,6 @@
+[Desktop Entry]
+Name=Offline LLM
+Exec=offlinellm-launch
+Icon=utilities-terminal
+Type=Application
+Categories=Utility;

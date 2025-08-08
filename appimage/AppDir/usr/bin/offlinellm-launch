@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+BASE_DIR="$(dirname "$(readlink -f "$0")")"
+cd "$BASE_DIR"
+
+# Run setup if first launch
+if [ ! -f ~/.offline-llm/setup_done ]; then
+    ./scripts/setup.sh
+    ./scripts/install_shortcut.sh
+    mkdir -p ~/.offline-llm
+    touch ~/.offline-llm/setup_done
+fi
+
+# Start services
+./scripts/start_offline_assistant.sh
+
+# Open browser
+xdg-open http://localhost:8080 >/dev/null 2>&1 &
