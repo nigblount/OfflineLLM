@@ -1,0 +1,9 @@
+flask
+pytesseract
+pdf2image
+python-docx
+chardet
+PyMuPDF
+python-magic
+tika
+langdetect
