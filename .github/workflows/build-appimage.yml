@@ -1,0 +1,28 @@
+name: build-appimage
+on:
+  push:
+    tags:
+      - '*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install appimagetool
+        run: sudo apt-get update && sudo apt-get install -y appimagetool
+      - name: Build AppImage
+        run: |
+          chmod +x appimage/AppDir/AppRun appimage/AppDir/usr/bin/offlinellm-launch
+          appimagetool appimage/AppDir OfflineLLM-x86_64.AppImage
+      - name: Upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: OfflineLLM-x86_64.AppImage
+          path: OfflineLLM-x86_64.AppImage
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: OfflineLLM-x86_64.AppImage
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
