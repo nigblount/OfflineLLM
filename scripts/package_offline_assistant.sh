@@ -13,7 +13,9 @@ mkdir -p "$IMAGES_DIR"
 # Copy core scripts and config
 cp "$REPO_ROOT/scripts/setup.sh" "$STAGING_DIR/"
 cp "$REPO_ROOT/scripts/start_offline_assistant.sh" "$STAGING_DIR/"
-cp "$REPO_ROOT/configs/OfflineAssistant.desktop" "$STAGING_DIR/"
+cp "$REPO_ROOT/scripts/launch.sh" "$STAGING_DIR/"
+cp "$REPO_ROOT/scripts/install_shortcut.sh" "$STAGING_DIR/"
+cp "$REPO_ROOT/configs/OfflineLLM.desktop" "$STAGING_DIR/"
 cp "$REPO_ROOT/.env.example" "$STAGING_DIR/"
 mkdir -p "$STAGING_DIR/configs/openwebui"
 cp "$REPO_ROOT/configs/openwebui/settings.yaml" "$STAGING_DIR/configs/openwebui/"
@@ -27,10 +29,6 @@ cp -r "$REPO_ROOT/docker" "$STAGING_DIR/"
 # Compose file
 cp "$REPO_ROOT/docker-compose.yaml" "$STAGING_DIR/"
 
-# Optional icon
-if [[ -f "$REPO_ROOT/configs/openwebui_icon.png" ]]; then
-  cp "$REPO_ROOT/configs/openwebui_icon.png" "$STAGING_DIR/"
-fi
 
 # Save Docker images
 

@@ -2,25 +2,30 @@ version: "3.9"
 services:
   ollama:
     image: ollama/ollama:0.9.5
+    command: ["ollama", "serve", "--model", "/models/qwen3-32b/Qwen3-32B-*.gguf"]
     ports:
       - "11434:11434"
     volumes:
-      - ollama_models:/root/.ollama
+      - qwen3-model:/models/qwen3-32b:ro
+      - ${HOME}/.ollama:/root/.ollama
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:11434/models"]
       interval: 30s
       retries: 5
     deploy:
-      device_requests:
-        - driver: nvidia
-          count: all
-          capabilities: [gpu]
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     restart: unless-stopped
 
   preview-service:
     build:
       context: .
       dockerfile: docker/preview_service.Dockerfile
+    image: offline-llm/preview:1.0
     ports:
       - "5001:5001"
     volumes:
@@ -64,10 +69,12 @@ services:
       - ./configs/openwebui/settings.yaml:/app/backend/data/settings.yaml:ro
       - ./configs/openwebui/models/config.yaml:/app/backend/data/models/config.yaml:ro
     deploy:
-      device_requests:
-        - driver: nvidia
-          count: all
-          capabilities: [gpu]
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     depends_on:
       ollama:
         condition: service_healthy
@@ -76,9 +83,5 @@ services:
     restart: unless-stopped
 
 volumes:
-  ollama_models:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${HOME}/.ollama
+  qwen3-model:
+    external: true

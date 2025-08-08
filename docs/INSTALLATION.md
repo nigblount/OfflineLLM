@@ -96,12 +96,12 @@ Use it in another Dockerfile:
 ```Dockerfile
 FROM offline-llm/base:1.0
 ```
-Build a minimal image with the Qwen2-32B model and fill a volume:
+Build a minimal image with the Qwen3-32B model and fill a volume:
 
 ```bash
-docker build -f docker/model.Dockerfile -t qwen2-model:1.0 .
+docker build -f docker/model.Dockerfile -t qwen3-model:1.0 .
 docker volume create qwen3-model
-docker run --rm -v qwen3-model:/models/qwen3-32b qwen2-model:1.0
+docker run --rm -v qwen3-model:/models/qwen3-32b qwen3-model:1.0
 ```
 
 
@@ -112,8 +112,8 @@ version: "3.9"
 services:
   preview-service:
     build:
-      context: services/preview_service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: docker/preview_service.Dockerfile
     image: offline-llm/preview:1.0
     volumes:
       - preview_data:/data
@@ -125,18 +125,20 @@ services:
 
   ollama:
     image: ollama/ollama:0.9.5
+    command: ["ollama", "serve", "--model", "/models/qwen3-32b/Qwen3-32B-*.gguf"]
     ports:
       - "11434:11434"
     volumes:
-      - ollama_models:/root/.ollama
-    command: >
-      ollama serve --model /models/qwen3-32b/Qwen3-32B-*.gguf \
-      --port 11434 --host 0.0.0.0 --log-level info
+      - qwen3-model:/models/qwen3-32b:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:11434/models"]
       interval: 30s
-      timeout: 5s
-      retries: 3
+      retries: 5
+    deploy:
+      device_requests:
+        - driver: nvidia
+          count: all
+          capabilities: [gpu]
     restart: unless-stopped
 
   open-webui:
@@ -157,7 +159,7 @@ services:
     restart: unless-stopped
 
 volumes:
-  ollama_models:
+  qwen3-model:
   webui_data:
   preview_data:
 ```
@@ -205,9 +207,15 @@ def extract():
 ```
 
 ## 7. Launch the Stack
-Build and start the containers:
+Copy `.env.example` to `.env` and set `WEBUI_SECRET`. Install the desktop shortcut and user service (optional):
 ```bash
-docker compose up --build -d
+chmod +x scripts/install_shortcut.sh
+./scripts/install_shortcut.sh
+```
+
+Start the containers:
+```bash
+./scripts/launch.sh
 ```
 Check status:
 ```bash
@@ -222,16 +230,17 @@ Open WebUI at <http://localhost:8080>.
 - Consider a CI pipeline to rebuild images and scan for vulnerabilities.
 
 ## 9. Desktop launcher and systemd service
-Copy the provided launcher and service files to integrate with your desktop environment:
+Run the installer to create a desktop shortcut and optional user service:
 
 ```bash
-cp configs/OfflineLLM.desktop ~/.local/share/applications/
-chmod +x ~/.local/share/applications/OfflineLLM.desktop
+chmod +x scripts/install_shortcut.sh
+./scripts/install_shortcut.sh
+```
 
-mkdir -p ~/.config/systemd/user
-cp configs/offline-llm.service ~/.config/systemd/user/
-systemctl --user daemon-reexec
+The launcher appears as **Offline LLM Assistant**. To keep the stack running after login, enable the service:
+
+```bash
 systemctl --user enable --now offline-llm.service
 ```
 
-The desktop launcher appears as **Offline LLM Assistant**. The systemd service starts the stack on login and restarts it if it exits. Ensure `unset DOCKER_HOST` is present in your `~/.bashrc` so Docker uses the default socket.
+Ensure `unset DOCKER_HOST` is present in your `~/.bashrc` so Docker uses the default socket.

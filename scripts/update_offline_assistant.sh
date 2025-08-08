@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
 log_step() {
   echo -e "\n=== $1 ===\n"
   date
@@ -38,41 +40,25 @@ chmod +x ~/.docker/cli-plugins/docker-compose
 docker --version
 docker compose version
 
-log_step "Docker Images"
-docker compose pull
-docker compose build
-
-log_step "Open WebUI source"
-if [ -d services/open-webui/.git ]; then
-  (cd services/open-webui && git pull origin main || true)
-else
-  echo "services/open-webui is not a git repository; skipping"
+log_step "Python Requirements"
+if [ -f "$REPO_ROOT/services/preview_service/requirements.txt" ]; then
+  if grep -q 'pip install --no-cache-dir -r requirements.txt' "$REPO_ROOT/docker/preview_service.Dockerfile"; then
+    echo "Verified pip install in docker/preview_service.Dockerfile"
+  else
+    echo "Warning: docker/preview_service.Dockerfile missing pip install line"
+  fi
 fi
 
-log_step "Python Requirements"
-declare -A DOCKERFILES
-DOCKERFILES[services/preview_service/requirements.txt]=docker/preview_service.Dockerfile
-DOCKERFILES[services/open-webui/requirements.txt]=docker/webui.Dockerfile
-for req in "${!DOCKERFILES[@]}"; do
-  [ -f "$req" ] || continue
-  dockerfile="${DOCKERFILES[$req]}"
-  if grep -q 'pip install --no-cache-dir -r requirements.txt' "$dockerfile"; then
-    echo "Verified pip install in $dockerfile"
-  else
-    echo "Warning: $dockerfile missing pip install line"
-  fi
-done
-
 log_step "Desktop Launcher"
-desktop_file="$HOME/.local/share/applications/offline-llm.desktop"
+desktop_file="${XDG_DATA_HOME:-$HOME/.local/share}/applications/offline-llm.desktop"
 if [ ! -f "$desktop_file" ]; then
   mkdir -p "$(dirname "$desktop_file")"
-  cat <<'LAUNCHER' > "$desktop_file"
+  cat <<LAUNCHER > "$desktop_file"
 [Desktop Entry]
 Name=Offline LLM Assistant
-Exec=/home/ai-analytics/OfflineLLM/start_offline_assistant.sh
+Exec=$REPO_ROOT/scripts/launch.sh
 Icon=utilities-terminal
-Terminal=true
+Terminal=false
 Type=Application
 Categories=Utility;
 LAUNCHER
@@ -80,5 +66,6 @@ LAUNCHER
 fi
 
 log_step "Restarting Offline LLM"
-docker compose down
-./start_offline_assistant.sh
+docker compose -f "$REPO_ROOT/docker-compose.yaml" pull
+docker compose -f "$REPO_ROOT/docker-compose.yaml" build
+docker compose -f "$REPO_ROOT/docker-compose.yaml" up -d
