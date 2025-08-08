@@ -35,37 +35,28 @@ fi
 # Create data dirs
 mkdir -p data/webui data/preview data/ollama
 
-echo "Building images (first run can take several minutes)..."
-dc build --pull open-webui preview-service
+# Start or update the stack
+docker compose -f docker-compose.yaml up -d --build
 
-echo "Starting services..."
-dc up -d
+# Decide which URL to open
+SETUP_URL="http://localhost:5051/setup"
+OPENWEBUI_PORT="${OPENWEBUI_PORT:-3000}"
+WEBUI_URL="http://localhost:${OPENWEBUI_PORT}"
 
-echo "Waiting for services to become healthy..."
-deadline=$((SECONDS+600))
-services=(ollama preview-service open-webui)
-for s in "${services[@]}"; do
-  echo -n " - $s "
-  while true; do
-    status="$(dc ps --format json | jq -r ".[] | select(.Name==\"$s\") | .Health")"
-    if [[ "$status" == "healthy" ]]; then
-      echo "✓"
-      break
-    fi
-    if (( SECONDS > deadline )); then
-      echo "timed out"
-      dc logs --no-log-prefix "$s" || true
-      echo "Service '$s' failed to become healthy."
-      exit 1
-    fi
-    echo -n "."
-    sleep 3
-  done
-done
-
-URL="http://localhost:3000"
-echo "Offline LLM is running at: $URL"
+# If no config yet, guide user to setup on first run
 if [[ "$OPEN_BROWSER" -eq 1 ]]; then
-  if command -v xdg-open >/dev/null; then xdg-open "$URL" >/dev/null 2>&1 || true; fi
-  if command -v gio >/dev/null; then gio open "$URL" >/dev/null 2>&1 || true; fi
+  if command -v xdg-open >/dev/null; then
+    if [[ ! -f "$REPO_ROOT/data/config/.env" ]]; then
+      xdg-open "$SETUP_URL" >/dev/null 2>&1 || true
+    else
+      xdg-open "$WEBUI_URL" >/dev/null 2>&1 || true
+    fi
+  fi
+fi
+
+echo "Offline LLM is running."
+if [[ ! -f "$REPO_ROOT/data/config/.env" ]]; then
+  echo "First run detected. Open $SETUP_URL to complete setup."
+else
+  echo "Open WebUI: $WEBUI_URL"
 fi

@@ -155,6 +155,35 @@ def extract():
 # setup configuration
 CONFIG_DIR = "/app/config"
 os.makedirs(CONFIG_DIR, exist_ok=True)
+ENV_PATH = os.path.join(CONFIG_DIR, ".env")
+
+
+def _get_openwebui_port():
+    # .env is simple KEY=VALUE; parse minimally
+    port = "3000"
+    try:
+        if os.path.exists(ENV_PATH):
+            with open(ENV_PATH, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if not line or line.startswith("#"):
+                        continue
+                    if line.startswith("OPENWEBUI_PORT="):
+                        port = line.split("=", 1)[1].strip()
+                        break
+    except Exception:
+        pass
+    return port or "3000"
+
+
+@app.route("/", methods=["GET"])
+def root_index():
+    # If first run (no .env), force setup
+    if not os.path.exists(ENV_PATH):
+        return redirect("/setup", code=302)
+    # Otherwise, send user straight to WebUI
+    port = _get_openwebui_port()
+    return redirect(f"http://localhost:{port}/", code=302)
 
 
 @app.route("/setup", methods=["GET", "POST"])

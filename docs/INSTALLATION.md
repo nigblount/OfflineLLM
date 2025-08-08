@@ -1,3 +1,9 @@
+### First run behavior
+- Click the "Offline LLM Assistant" desktop icon (or run `scripts/launch.sh`).
+- If no config is found, your browser opens **http://localhost:5051/setup** automatically.
+- After saving, the app launches Open WebUI at **http://localhost:3000** (or your chosen port).
+- Everything runs offline by default unless you explicitly enable "Build online" during setup.
+
 # First‑Run Setup (local only)
 
 Open http://localhost:5051/setup to configure the app (optional Hugging Face token, offline/online build mode, model choices). Settings are written to ./data/config and used by Docker Compose automatically.
