@@ -22,18 +22,19 @@ services:
     image: offline-llm/open-webui:local
     container_name: open-webui
     restart: unless-stopped
+    env_file:
+      - ./data/config/.env
     environment:
       - OLLAMA_BASE_URL=http://ollama:11434
-      # runtime offline by default (can be overridden with env if needed)
       - HF_HUB_OFFLINE=1
       - TRANSFORMERS_OFFLINE=1
       - EMBEDDINGS_DIR=/app/embeddings
     ports:
-      - "3000:8080"
+      - "${OPENWEBUI_PORT:-3000}:8080"
     volumes:
-      # user data and uploads live here; embeddings are baked in the image
       - ./data/webui:/app/backend/data
       - ./data/preview:/app/preview
+      - ./data/config:/app/config:ro
     depends_on:
       ollama:
         condition: service_healthy
@@ -48,7 +49,6 @@ services:
   preview-service:
     build:
       context: .
-      dockerfile: docker/preview_service.Dockerfile
     image: offline-llm/preview:1.0
     container_name: preview-service
     restart: unless-stopped
@@ -59,6 +59,7 @@ services:
       - PYTHONUNBUFFERED=1
     volumes:
       - ./data/preview:/data/preview
+      - ./data/config:/app/config
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:5051/health"]
       interval: 30s

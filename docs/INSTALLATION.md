@@ -1,3 +1,7 @@
+# First‑Run Setup (local only)
+
+Open http://localhost:5051/setup to configure the app (optional Hugging Face token, offline/online build mode, model choices). Settings are written to ./data/config and used by Docker Compose automatically.
+
 # Quick Start (Self‑Contained)
 
 **Prereqs:** Docker Desktop or Docker Engine + Compose plugin.
