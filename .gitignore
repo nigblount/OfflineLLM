@@ -1,0 +1,8 @@
+OfflineLLM-x86_64.AppImage
+appimage/AppDir/usr/bin/images/*
+!appimage/AppDir/usr/bin/images/.gitkeep
+appimage/AppDir/usr/bin/models/*
+!appimage/AppDir/usr/bin/models/qwen3-32b/
+appimage/AppDir/usr/bin/models/qwen3-32b/*
+!appimage/AppDir/usr/bin/models/qwen3-32b/.gitkeep
+appimage/AppDir/icon.png
