@@ -29,6 +29,7 @@ docker run --rm -v qwen3-model:/models/qwen3-32b qwen3-model:1.0
 ```
 
 ## Launch
+- No host Python or pip required. All dependencies are installed inside Docker images. You won’t hit PEP 668 errors.
 
 Copy `.env.example` to `.env` and set `WEBUI_SECRET`. Adjust `PREVIEW_SERVICE_URL` if the preview service runs elsewhere; the default `DATABASE_URL` already points to the persistent SQLite database.
 

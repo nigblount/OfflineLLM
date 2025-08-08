@@ -1,20 +1,22 @@
+# docker/webui.Dockerfile
 FROM ghcr.io/open-webui/open-webui:ollama
 
-ENV SCARF_NO_ANALYTICS=true \
-    DO_NOT_TRACK=true \
-    ANONYMIZED_TELEMETRY=false \
-    HF_HUB_OFFLINE=1 \
-    TRANSFORMERS_OFFLINE=1 \
-    SENTENCE_TRANSFORMERS_HOME=/app/embeddings \
-    EMBEDDING_MODEL=intfloat/multilingual-e5-base
+# Allow online downloads ONLY during build to bake assets
+ENV HF_HUB_OFFLINE=0
+ENV TRANSFORMERS_OFFLINE=0
 
-# Install sentence-transformers and preload embedding model
-RUN pip install --no-cache-dir sentence-transformers \
-    && mkdir -p /app/embeddings \
-    && python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('intfloat/multilingual-e5-base', cache_folder='/app/embeddings')"
+# Install sentence-transformers and bake the multilingual-e5-base embeddings into the image
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir sentence-transformers && \
+    mkdir -p /app/embeddings && \
+    python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('intfloat/multilingual-e5-base', cache_folder='/app/embeddings')"
 
-COPY docker/webui-entrypoint.sh /usr/local/bin/webui-entrypoint.sh
-RUN chmod +x /usr/local/bin/webui-entrypoint.sh
+# Flip to offline by default at runtime
+ENV HF_HUB_OFFLINE=1
+ENV TRANSFORMERS_OFFLINE=1
 
-ENTRYPOINT ["/usr/local/bin/webui-entrypoint.sh"]
-CMD ["bash","start.sh"]
+# Make sure Open WebUI sees the model cache where we baked it
+ENV EMBEDDINGS_DIR=/app/embeddings
+
+# Healthcheck: verify the web UI is serving on 8080 (container internal)
+HEALTHCHECK --interval=30s --timeout=5s --retries=10 CMD wget -qO- http://localhost:8080/ || exit 1

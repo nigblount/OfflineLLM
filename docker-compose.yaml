@@ -1,87 +1,79 @@
-version: "3.9"
+# docker-compose.yaml
+# NOTE: remove `version:` to avoid the obsolete warning
 services:
   ollama:
-    image: ollama/ollama:0.9.5
-    command: ["ollama", "serve", "--model", "/models/qwen3-32b/Qwen3-32B-*.gguf"]
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
     ports:
       - "11434:11434"
     volumes:
-      - qwen3-model:/models/qwen3-32b:ro
-      - ${HOME}/.ollama:/root/.ollama
+      - ./data/ollama:/root/.ollama
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:11434/models"]
+      test: ["CMD", "curl", "-sf", "http://localhost:11434/api/tags"]
       interval: 30s
-      retries: 5
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    restart: unless-stopped
-
-  preview-service:
-    build:
-      context: .
-      dockerfile: docker/preview_service.Dockerfile
-    image: offline-llm/preview:1.0
-    ports:
-      - "5001:5001"
-    volumes:
-      - ./data/preview:/data
-    depends_on:
-      tika:
-        condition: service_started
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5001/health"]
-      interval: 30s
-      retries: 3
-    restart: unless-stopped
-
-  tika:
-    image: apache/tika:3.2.1.0-full
-    restart: unless-stopped
+      timeout: 5s
+      retries: 20
 
   open-webui:
     build:
       context: .
       dockerfile: docker/webui.Dockerfile
-    image: offline-llm/webui:1.0
-    ports:
-      - "8080:8080"
+    image: offline-llm/open-webui:local
+    container_name: open-webui
+    restart: unless-stopped
+    env_file:
+      - ./data/config/.env
     environment:
-      - OW_CONFIG=/app/backend/data/settings.yaml
-      - WEBUI_SECRET=${WEBUI_SECRET:-changeme}
-      - PREVIEW_SERVICE_URL=${PREVIEW_SERVICE_URL:-http://preview-service:5001}
-      - DATABASE_URL=${DATABASE_URL:-sqlite:///backend/data/sqlite.db}
       - OLLAMA_BASE_URL=http://ollama:11434
-      - SENTENCE_TRANSFORMERS_HOME=/app/embeddings
-      - EMBEDDING_MODEL=intfloat/multilingual-e5-base
       - HF_HUB_OFFLINE=1
       - TRANSFORMERS_OFFLINE=1
-      - SCARF_NO_ANALYTICS=true
-      - DO_NOT_TRACK=true
-      - ANONYMIZED_TELEMETRY=false
+      - EMBEDDINGS_DIR=/app/embeddings
+    ports:
+      - "${OPENWEBUI_PORT:-3000}:8080"
     volumes:
       - ./data/webui:/app/backend/data
-      - ./data/webui/embeddings:/app/embeddings
-      - ./configs/openwebui/settings.yaml:/app/backend/data/settings.yaml:ro
-      - ./configs/openwebui/models/config.yaml:/app/backend/data/models/config.yaml:ro
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
+      - ./data/preview:/app/preview
+      - ./data/config:/app/config:ro
     depends_on:
       ollama:
         condition: service_healthy
       preview-service:
         condition: service_healthy
-    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 5s
+      retries: 20
 
-volumes:
-  qwen3-model:
-    external: true
+  preview-service:
+    build:
+      context: .
+    image: offline-llm/preview:1.0
+    container_name: preview-service
+    restart: unless-stopped
+    ports:
+      - "5051:5051"
+    environment:
+      - TIKA_JAR=/opt/tika/tika.jar
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./data/preview:/data/preview
+      - ./data/config:/app/config
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:5051/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 20
+
+  tika:
+    image: apache/tika:2.9.1.0
+    container_name: tika
+    restart: unless-stopped
+    ports:
+      - "9998:9998"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9998/version"]
+      interval: 30s
+      timeout: 5s
+      retries: 20
