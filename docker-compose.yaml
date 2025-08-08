@@ -1,0 +1,79 @@
+# docker-compose.yaml
+# NOTE: remove `version:` to avoid the obsolete warning
+services:
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ./data/ollama:/root/.ollama
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 5s
+      retries: 20
+
+  open-webui:
+    build:
+      context: .
+      dockerfile: docker/webui.Dockerfile
+    image: offline-llm/open-webui:local
+    container_name: open-webui
+    restart: unless-stopped
+    env_file:
+      - ./data/config/.env
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - HF_HUB_OFFLINE=1
+      - TRANSFORMERS_OFFLINE=1
+      - EMBEDDINGS_DIR=/app/embeddings
+    ports:
+      - "${OPENWEBUI_PORT:-3000}:8080"
+    volumes:
+      - ./data/webui:/app/backend/data
+      - ./data/preview:/app/preview
+      - ./data/config:/app/config:ro
+    depends_on:
+      ollama:
+        condition: service_healthy
+      preview-service:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 5s
+      retries: 20
+
+  preview-service:
+    build:
+      context: .
+    image: offline-llm/preview:1.0
+    container_name: preview-service
+    restart: unless-stopped
+    ports:
+      - "5051:5051"
+    environment:
+      - TIKA_JAR=/opt/tika/tika.jar
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./data/preview:/data/preview
+      - ./data/config:/app/config
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:5051/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 20
+
+  tika:
+    image: apache/tika:2.9.1.0
+    container_name: tika
+    restart: unless-stopped
+    ports:
+      - "9998:9998"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:9998/version"]
+      interval: 30s
+      timeout: 5s
+      retries: 20

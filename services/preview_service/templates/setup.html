@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Offline LLM – First‑Run Setup</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; max-width: 820px; margin: 2rem auto; padding: 0 1rem; }
+    .card { border: 1px solid #ddd; border-radius: 12px; padding: 1rem 1.25rem; margin-bottom: 1rem; }
+    label { display:block; font-weight:600; margin-top: .5rem; }
+    input[type=text], input[type=password], select { width:100%; padding:.6rem; border:1px solid #ccc; border-radius:8px; }
+    .row { display:flex; gap: 1rem; }
+    .row > div { flex: 1; }
+    .hint { color:#666; font-size:.9rem; }
+    button { padding:.8rem 1.1rem; border-radius:10px; border:none; background:#111827; color:#fff; cursor:pointer; }
+    button:disabled { opacity:.6; cursor:not-allowed; }
+    .success { background:#ecfdf5; border:1px solid #10b981; }
+    .error { background:#fef2f2; border:1px solid #ef4444; }
+  </style>
+</head>
+<body>
+  <h1>Offline LLM – First‑Run Setup</h1>
+  <form method="post" action="/setup">
+    <div class="card">
+      <h2>Connectivity & Mode</h2>
+      <label>Runtime mode</label>
+      <select name="mode">
+        <option value="offline" selected>Offline only (recommended)</option>
+        <option value="build-online">Allow online during build only</option>
+      </select>
+      <p class="hint">Offline only ensures no external downloads. “Build online” temporarily allows Hugging Face downloads during image build.</p>
+    </div>
+
+    <div class="card">
+      <h2>Hugging Face (optional)</h2>
+      <label>HF Access Token</label>
+      <input name="hf_token" type="password" placeholder="hf_..." autocomplete="off" />
+      <p class="hint">Stored locally and used only for model/embedding downloads during build.</p>
+    </div>
+
+    <div class="card">
+      <h2>Models</h2>
+      <div class="row">
+        <div>
+          <label>Ollama LLM</label>
+          <input name="ollama_model" type="text" value="qwen2.5:14b" />
+          <p class="hint">Example: qwen2.5:14b, or your preferred local tag.</p>
+        </div>
+        <div>
+          <label>Embedding Model</label>
+          <input name="emb_model" type="text" value="intfloat/multilingual-e5-base" />
+          <p class="hint">Baked into image during build (if allowed).</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>System</h2>
+      <div class="row">
+        <div>
+          <label>GPU</label>
+          <select name="gpu">
+            <option value="0" selected>CPU</option>
+            <option value="1">GPU (if available)</option>
+          </select>
+        </div>
+        <div>
+          <label>Open WebUI Port</label>
+          <input name="openwebui_port" type="text" value="3000" />
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <button type="submit">Save & Apply</button>
+    </div>
+  </form>
+</body>
+</html>
